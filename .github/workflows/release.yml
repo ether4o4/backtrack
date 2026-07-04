@@ -11,6 +11,10 @@ on:
     tags:
       - "v*"
 
+# Needed so the release step can create/attach binaries on tag pushes.
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
