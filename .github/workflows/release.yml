@@ -8,6 +8,8 @@ name: Build desktop installers
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "claude/crosstrace-app-design-ucnqcg"
     tags:
       - "v*"
 
