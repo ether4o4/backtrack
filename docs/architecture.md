@@ -121,6 +121,8 @@ The React UI talks to a single `api` module. When running inside the Tauri
 shell it dispatches every call to the core over IPC; in a plain browser it
 falls back to a small in-browser demo engine (`frontend/src/demo.ts`) that
 mirrors the same queries, so the interface is fully explorable without the
-backend. The assistant (`frontend/src/assistant.ts`) is a deterministic
-natural-language-to-query translator — it always answers from, and cites, real
-records.
+backend. The assistant (`frontend/src/assistant.ts`) is an **optional**
+convenience: a deterministic natural-language-to-query translator that always
+answers from, and cites, real records. It is off by default, toggled from the
+top bar, and makes no network calls — every feature of the app is fully
+reachable without it.

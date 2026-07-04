@@ -38,6 +38,23 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // The assistant is optional — the app is fully usable without it. Off by
+  // default; the choice is remembered across sessions.
+  const [assistantEnabled, setAssistantEnabled] = useState(
+    () => typeof localStorage !== "undefined" && localStorage.getItem("ct.assistant") === "1"
+  );
+  const toggleAssistant = useCallback(() => {
+    setAssistantEnabled((on) => {
+      const next = !on;
+      try {
+        localStorage.setItem("ct.assistant", next ? "1" : "0");
+      } catch {
+        /* storage may be unavailable; the in-memory state still works */
+      }
+      return next;
+    });
+  }, []);
+
   const filters = useMemo(() => ({ platform, limit: 300 }), [platform]);
 
   // ---- Loaders ---------------------------------------------------------
@@ -143,6 +160,8 @@ export function App() {
         setQuery={setQuery}
         onEnter={() => setView(query.trim() ? "search" : "timeline")}
         inputRef={searchRef}
+        assistantEnabled={assistantEnabled}
+        onToggleAssistant={toggleAssistant}
       />
 
       <div className="panes">
@@ -176,6 +195,7 @@ export function App() {
         <DetailsPane
           detail={detail}
           correlation={correlation}
+          assistantEnabled={assistantEnabled}
           onOpenRecord={openRecord}
           onOpenEntity={openEntity}
           onSearch={searchFor}
@@ -193,6 +213,8 @@ function TopBar(props: {
   setQuery: (s: string) => void;
   onEnter: () => void;
   inputRef: React.RefObject<HTMLInputElement>;
+  assistantEnabled: boolean;
+  onToggleAssistant: () => void;
 }) {
   return (
     <div className="topbar">
@@ -213,6 +235,14 @@ function TopBar(props: {
         />
         <kbd>⌘K</kbd>
       </div>
+      <button
+        className={`toggle-assistant ${props.assistantEnabled ? "on" : ""}`}
+        onClick={props.onToggleAssistant}
+        title="The assistant is optional — CrossTrace is fully usable without it"
+        aria-pressed={props.assistantEnabled}
+      >
+        ◆ Assistant {props.assistantEnabled ? "on" : "off"}
+      </button>
       <span className={`mode-badge ${props.mode}`}>
         {props.mode === "desktop" ? "● Local engine" : "◐ Demo data"}
       </span>

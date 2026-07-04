@@ -6,6 +6,7 @@ import { ask, SUGGESTED_PROMPTS, type AiAnswer } from "../assistant";
 export function DetailsPane(props: {
   detail: RecordDetail | null;
   correlation: Correlation | null;
+  assistantEnabled: boolean;
   onOpenRecord: (id: number) => void;
   onOpenEntity: (id: number) => void;
   onSearch: (q: string) => void;
@@ -18,12 +19,18 @@ export function DetailsPane(props: {
         <DetailView d={props.detail} onOpenRecord={props.onOpenRecord} onOpenEntity={props.onOpenEntity} />
       ) : (
         <div className="detail-empty">
-          Select a record or entity to see its connections, or ask the assistant below.
+          Select a record or entity to see its connections{props.assistantEnabled ? ", or ask the assistant below" : ""}.
         </div>
       )}
 
-      <div style={{ borderTop: "1px solid var(--border)", marginTop: "auto" }} />
-      <Assistant onOpenRecord={props.onOpenRecord} />
+      {/* The assistant is an optional convenience. Everything the app does is
+          reachable without it — it is off unless explicitly enabled. */}
+      {props.assistantEnabled && (
+        <>
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: "auto" }} />
+          <Assistant onOpenRecord={props.onOpenRecord} />
+        </>
+      )}
     </div>
   );
 }

@@ -26,9 +26,11 @@ fast, searchable interface. Nothing leaves your machine.
   timeline, universal Google-like search, an entity list by frequency, a
   relationship graph, and an import overview with charts and an activity
   heatmap.
-- **Ask** a built-in assistant natural-language questions; it translates them
-  into queries over your data and **cites the exact records** — it never
-  invents information.
+- **Ask** (optional) a built-in assistant natural-language questions; it
+  translates them into queries over your data and **cites the exact records** —
+  it never invents information. The assistant is off by default and can be
+  toggled from the top bar; every feature above works fully without it, and it
+  makes no network calls (it is a local, deterministic query translator).
 
 ## Architecture
 
