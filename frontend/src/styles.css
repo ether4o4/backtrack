@@ -320,6 +320,49 @@ button {
 .node-label { fill: var(--text); font-size: 10px; font-family: var(--sans); }
 .edge { stroke: #333947; }
 
+/* ---- Mobile bottom nav (hidden on wide screens) ---- */
+.mobile-nav { display: none; }
+
+@media (max-width: 820px) {
+  .panes { grid-template-columns: 1fr; }
+  .pane { display: none; border-right: none; }
+  .panes[data-pane="sources"] .pane.left { display: block; }
+  .panes[data-pane="results"] .pane.center { display: block; }
+  .panes[data-pane="details"] .pane.right { display: block; }
+
+  .mobile-nav {
+    display: flex;
+    background: var(--bg-1);
+    border-top: 1px solid var(--border);
+  }
+  .mobile-nav button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-faint);
+    padding: 9px 4px calc(9px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+    font-size: 11px;
+  }
+  .mobile-nav button.active { color: var(--accent); }
+  .mobile-nav button .g { font-size: 19px; line-height: 1; }
+  .mobile-nav .dot-badge {
+    position: absolute; top: 6px; left: 50%; margin-left: 6px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2);
+  }
+
+  /* Tighten the top bar for phones. */
+  .brand small { display: none; }
+  .toggle-assistant { display: none; }
+  .searchbar kbd { display: none; }
+  .topbar { gap: 10px; padding: 9px 10px; }
+  .searchbar input { font-size: 16px; } /* 16px avoids iOS/Android zoom-on-focus */
+}
+
 /* statusbar */
 .statusbar {
   display: flex; align-items: center; gap: 14px;

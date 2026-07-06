@@ -38,6 +38,10 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // Which pane is visible on a phone-sized screen (three panes can't fit).
+  // Ignored on wide screens where all three show side by side.
+  const [mobilePane, setMobilePane] = useState<"sources" | "results" | "details">("results");
+
   // The assistant is optional — the app is fully usable without it. Off by
   // default; the choice is remembered across sessions.
   const [assistantEnabled, setAssistantEnabled] = useState(
@@ -120,12 +124,14 @@ export function App() {
   const openRecord = useCallback(async (id: number) => {
     setSelectedRecord(id);
     setCorrelation(null);
+    setMobilePane("details");
     setDetail(await api.recordDetail(id));
   }, []);
 
   const openEntity = useCallback(async (id: number) => {
     setDetail(null);
     setSelectedRecord(null);
+    setMobilePane("details");
     setCorrelation(await api.correlation(id));
   }, []);
 
@@ -152,6 +158,21 @@ export function App() {
     [reloadSidebar, loadView, view]
   );
 
+  // Cross-platform import via the OS file picker (the only way to import on
+  // Android, and a convenient path on desktop too).
+  const doPickImport = useCallback(async () => {
+    setBusy(true);
+    try {
+      const summaries = await api.importViaPicker();
+      if (summaries) {
+        await reloadSidebar();
+        await loadView(view);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [reloadSidebar, loadView, view]);
+
   return (
     <div className="app">
       <TopBar
@@ -164,10 +185,10 @@ export function App() {
         onToggleAssistant={toggleAssistant}
       />
 
-      <div className="panes">
+      <div className="panes" data-pane={mobilePane}>
         <SourcesPane
           view={view}
-          setView={setView}
+          setView={(v) => { setView(v); setMobilePane("results"); }}
           sources={sources}
           entities={entities}
           platform={platform}
@@ -175,6 +196,7 @@ export function App() {
           entityKind={entityKind}
           setEntityKind={setEntityKind}
           onImport={doImport}
+          onPickImport={doPickImport}
           mode={mode}
         />
 
@@ -202,8 +224,38 @@ export function App() {
         />
       </div>
 
+      <MobileNav active={mobilePane} setActive={setMobilePane} hasDetail={!!detail || !!correlation} />
       <StatusBar mode={mode} sources={sources.length} results={results.length} busy={busy} />
     </div>
+  );
+}
+
+// Bottom tab bar shown only on phone-sized screens (CSS-gated). Lets the user
+// move between the three panes that sit side-by-side on a desktop.
+function MobileNav(props: {
+  active: "sources" | "results" | "details";
+  setActive: (p: "sources" | "results" | "details") => void;
+  hasDetail: boolean;
+}) {
+  const tabs: { id: "sources" | "results" | "details"; label: string; glyph: string }[] = [
+    { id: "sources", label: "Sources", glyph: "☰" },
+    { id: "results", label: "Explore", glyph: "≡" },
+    { id: "details", label: "Details", glyph: "◔" },
+  ];
+  return (
+    <nav className="mobile-nav">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          className={props.active === t.id ? "active" : ""}
+          onClick={() => props.setActive(t.id)}
+        >
+          <span className="g" aria-hidden>{t.glyph}</span>
+          <span className="l">{t.label}</span>
+          {t.id === "details" && props.hasDetail && <span className="dot-badge" />}
+        </button>
+      ))}
+    </nav>
   );
 }
 

@@ -36,6 +36,36 @@ export const api = {
   importPath(path: string): Promise<ImportSummary> {
     return isTauri() ? invoke("import", { path }) : demo.import();
   },
+
+  /**
+   * Cross-platform import that works on both desktop and Android: opens the
+   * OS file picker, reads each chosen file into bytes, and hands the bytes to
+   * the backend. On Android the picker returns content URIs (not filesystem
+   * paths), so reading to bytes here is what makes mobile import possible.
+   * Returns null if the user cancelled.
+   */
+  async importViaPicker(): Promise<ImportSummary[] | null> {
+    if (!isTauri()) return demo.import();
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const selection = await open({
+      multiple: true,
+      title: "Choose export files to import",
+    });
+    if (!selection) return null;
+    const paths = Array.isArray(selection) ? selection : [selection];
+    const summaries: ImportSummary[] = [];
+    for (const path of paths) {
+      const bytes = await readFile(path);
+      const name = path.split(/[\\/]/).pop() || path;
+      const summary = await invoke<ImportSummary>("import_blob", {
+        name,
+        bytes: Array.from(bytes),
+      });
+      summaries.push(summary);
+    }
+    return summaries;
+  },
   search(query: string, filters: SearchFilters = {}): Promise<SearchHit[]> {
     return isTauri() ? invoke("search", { query, filters }) : demo.search(query, filters);
   },

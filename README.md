@@ -75,6 +75,24 @@ cd frontend && npm install
 cd ../src-tauri && cargo tauri dev      # or: npm --prefix ../frontend run tauri dev
 ```
 
+### Build the Android app
+
+The same Rust engine and React UI run on Android via Tauri v2 mobile. The UI is
+responsive — the three panes collapse into a single-pane layout with a bottom
+tab bar on phones, and import uses the Android file picker (content URIs are
+read to bytes and handed to the engine, so no filesystem path is needed).
+
+A **debug-signed APK** is built by the `Build Android APK` GitHub Actions
+workflow (this repo has no Android SDK locally, so it builds on CI). Download
+it from the workflow run's Artifacts, then install it on a phone with "allow
+install from unknown sources". Locally, with the Android SDK + NDK installed:
+
+```bash
+cd src-tauri
+cargo tauri android init
+cargo tauri android build --apk --debug
+```
+
 ### Preview the UI in a browser (no backend)
 
 The frontend ships with a small bundled demo dataset and an in-browser engine,

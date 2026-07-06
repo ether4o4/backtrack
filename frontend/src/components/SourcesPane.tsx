@@ -23,6 +23,7 @@ export function SourcesPane(props: {
   entityKind: string | null;
   setEntityKind: (k: string | null) => void;
   onImport: (path: string) => Promise<unknown>;
+  onPickImport: () => Promise<unknown>;
   mode: "desktop" | "demo";
 }) {
   const [drag, setDrag] = useState(false);
@@ -90,9 +91,18 @@ export function SourcesPane(props: {
             onKeyDown={(e) => e.key === "Enter" && importPath(pathInput)}
           />
         </div>
-        <button className="import-btn" style={{ marginTop: 8 }} onClick={() => importPath(pathInput)}>
-          + Import data
+        <button className="import-btn" style={{ marginTop: 8 }} onClick={() => props.onPickImport()}>
+          + Choose files to import
         </button>
+        {pathInput.trim() && (
+          <button
+            className="chip"
+            style={{ width: "100%", marginTop: 6, padding: 8 }}
+            onClick={() => importPath(pathInput)}
+          >
+            Import from pasted path
+          </button>
+        )}
         {props.mode === "demo" && (
           <div style={{ color: "var(--text-faint)", fontSize: 11, marginTop: 7, lineHeight: 1.4 }}>
             Viewing bundled demo data. Run the desktop app to import your own exports.
