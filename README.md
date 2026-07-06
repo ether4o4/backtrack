@@ -83,9 +83,19 @@ tab bar on phones, and import uses the Android file picker (content URIs are
 read to bytes and handed to the engine, so no filesystem path is needed).
 
 A **debug-signed APK** is built by the `Build Android APK` GitHub Actions
-workflow (this repo has no Android SDK locally, so it builds on CI). Download
-it from the workflow run's Artifacts, then install it on a phone with "allow
-install from unknown sources". Locally, with the Android SDK + NDK installed:
+workflow (this repo has no Android SDK locally, so it builds on CI). Every push
+to `main` re-publishes it to a rolling **`nightly`** release — direct download,
+no zip to unpack:
+
+[![Download APK](https://img.shields.io/badge/Download-CrossTrace%20APK-3b82f6?logo=android&logoColor=white&style=for-the-badge)](https://github.com/ether4o4/backtrack/releases/download/nightly/backtrack-debug.apk)
+
+**[Download the latest APK](https://github.com/ether4o4/backtrack/releases/download/nightly/backtrack-debug.apk)**
+
+> Debug-signed. Enable *Install unknown apps* for your browser or file manager,
+> then open the APK.
+
+You can also grab the APK from the workflow run's **Artifacts** if you need a
+specific build. Locally, with the Android SDK + NDK installed:
 
 ```bash
 cd src-tauri

@@ -1,26 +1,27 @@
 name: Build Android APK
 
-# Produces a downloadable, debug-signed backtrack Android APK. Run it manually
-# from the Actions tab (workflow_dispatch) or let it fire on pushes to the
-# working branch. The APK is a build artifact on the run; it is debug-signed,
-# so install it on a phone by allowing "install from unknown sources".
-#
-# This sandbox has no Android SDK/NDK, so the APK is built here on GitHub's
-# runners, the same way the desktop installers are.
+# Produces a downloadable, debug-signed backtrack Android APK and publishes it to
+# a rolling "nightly" GitHub Release (direct .apk link in README).
 
 on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - "claude/crosstrace-app-design-ucnqcg"
     tags:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  android:
+  build:
+    name: Build debug APK
     runs-on: ubuntu-22.04
     env:
       NDK_VERSION: "27.0.12077973"
@@ -88,3 +89,45 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publishes the freshly built debug APK to a single rolling "nightly" release so
+  # the README download link always points at the latest build (a raw .apk, no zip).
+  release:
+    name: Publish rolling debug APK
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/crosstrace-app-design-ucnqcg')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download built APK
+        uses: actions/download-artifact@v4
+        with:
+          name: backtrack-android-apk
+          path: apk
+
+      - name: Stage APK under a stable name
+        run: |
+          mkdir -p dist
+          apk="$(find apk -path '*/universal/*/*.apk' | head -n1)"
+          if [ -z "$apk" ]; then apk="$(find apk -path '*arm64*/*.apk' | head -n1); fi
+          if [ -z "$apk" ]; then apk="$(find apk -name '*.apk' | head -n1)"; fi
+          if [ -z "$apk" ]; then echo "No APK found in artifact" >&2; exit 1; fi
+          cp "$apk" dist/backtrack-debug.apk
+          ls -lh dist/
+
+      - name: Publish to rolling "nightly" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: CrossTrace / backtrack (latest debug build)
+          prerelease: true
+          files: dist/backtrack-debug.apk
+          body: |
+            Auto-published debug APK, rebuilt on every push to `main` or the working branch.
+
+            Commit: ${{ github.sha }}
+
+            Debug-signed. Enable *Install unknown apps* on your phone, then open the APK.
