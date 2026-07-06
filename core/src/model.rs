@@ -16,6 +16,7 @@ pub enum SourceKind {
     VCard,
     SmsXml,
     Html,
+    Pdf,
     Text,
     Unknown,
 }
@@ -28,6 +29,7 @@ impl SourceKind {
             SourceKind::VCard => "vcard",
             SourceKind::SmsXml => "sms_xml",
             SourceKind::Html => "html",
+            SourceKind::Pdf => "pdf",
             SourceKind::Text => "text",
             SourceKind::Unknown => "unknown",
         }

@@ -4,7 +4,9 @@
 
 pub mod csv;
 pub mod detect;
+pub mod html;
 pub mod json;
+pub mod pdf;
 pub mod sms_xml;
 pub mod timeparse;
 pub mod vcard;
@@ -172,7 +174,9 @@ fn parse_with(det: &Detection, bytes: &[u8]) -> Option<crate::Result<Vec<Normali
         SourceKind::Json => json::parse(bytes, p),
         SourceKind::VCard => vcard::parse(bytes, p),
         SourceKind::SmsXml => sms_xml::parse(bytes, p),
-        SourceKind::Html | SourceKind::Text | SourceKind::Unknown => return None,
+        SourceKind::Html => html::parse(bytes, p),
+        SourceKind::Pdf => pdf::parse(bytes, p),
+        SourceKind::Text | SourceKind::Unknown => return None,
     })
 }
 

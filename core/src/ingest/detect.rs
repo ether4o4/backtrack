@@ -36,6 +36,7 @@ pub fn detect(path: &Path, head: &str) -> Detection {
             }
         }
         "html" | "htm" => SourceKind::Html,
+        "pdf" => SourceKind::Pdf,
         "txt" | "log" => SourceKind::Text,
         _ => sniff(head),
     };
@@ -45,6 +46,9 @@ pub fn detect(path: &Path, head: &str) -> Detection {
 
 /// Content sniff when the extension is missing or unknown.
 fn sniff(head: &str) -> SourceKind {
+    if head.starts_with("%PDF-") {
+        return SourceKind::Pdf;
+    }
     let t = head.trim_start();
     if t.starts_with('{') || t.starts_with('[') {
         SourceKind::Json
@@ -52,7 +56,7 @@ fn sniff(head: &str) -> SourceKind {
         SourceKind::VCard
     } else if t.contains("<smses") || t.contains("<sms ") {
         SourceKind::SmsXml
-    } else if t.starts_with("<!DOCTYPE html") || t.starts_with("<html") {
+    } else if t.to_ascii_lowercase().starts_with("<!doctype html") || t.to_ascii_lowercase().starts_with("<html") {
         SourceKind::Html
     } else if t.contains(',') && t.lines().next().map(|l| l.contains(',')).unwrap_or(false) {
         SourceKind::Csv

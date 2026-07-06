@@ -6,6 +6,12 @@
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 
+/// Regex (compact, no verbose mode) matching the human date/time strings that
+/// appear in HTML/PDF exports: "Mar 09, 2024 4:15:07 PM", "2024-03-09 16:15",
+/// "09/03/2024, 16:15". Shared by the HTML and PDF parsers to split text into
+/// dated blocks. `[\s,]` (not `[ ,]`) keeps the space separator intact.
+pub const TS_PATTERN: &str = r"(?i)\b(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:[\s,]+\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?)?|\d{4}-\d{2}-\d{2}(?:[\st]\d{1,2}:\d{2}(?::\d{2})?)?|\d{1,2}/\d{1,2}/\d{4}(?:[\s,]+\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?)?)\b";
+
 pub fn parse_timestamp(s: &str) -> Option<i64> {
     let s = s.trim();
     if s.is_empty() {
@@ -35,8 +41,14 @@ pub fn parse_timestamp(s: &str) -> Option<i64> {
         "%Y/%m/%d %H:%M:%S",
         "%m/%d/%Y %H:%M:%S",
         "%m/%d/%Y %I:%M %p",
+        "%m/%d/%Y, %I:%M %p",
         "%d/%m/%Y %H:%M",
+        "%d/%m/%Y, %H:%M",
+        "%b %d, %Y %I:%M:%S %p",
         "%b %d, %Y %I:%M %p",
+        "%b %d, %Y, %I:%M %p",
+        "%B %d, %Y %I:%M:%S %p",
+        "%B %d, %Y %I:%M %p",
         "%B %d, %Y",
     ];
     for fmt in NAIVE_FMTS {
