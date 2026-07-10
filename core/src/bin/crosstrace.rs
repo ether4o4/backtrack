@@ -153,8 +153,9 @@ fn line(title: &Option<String>, body: &Option<String>) -> String {
     let t = title.as_deref().unwrap_or("");
     let b = body.as_deref().unwrap_or("");
     let joined = if t.is_empty() { b.to_string() } else { format!("{t}: {b}") };
-    let one: String = joined.chars().filter(|c| *c != '\n').take(80).collect();
-    one
+    // Collapse newlines/whitespace to single spaces rather than deleting them,
+    // so words from separate lines don't run together in the one-line view.
+    joined.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(80).collect()
 }
 
 fn usage() {

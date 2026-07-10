@@ -7,12 +7,10 @@
 //! timestamps the exports print next to each entry. Each block becomes a
 //! record; identifiers (names, phones, emails) are extracted from its text.
 
-use crate::ingest::timeparse::{parse_timestamp, TS_PATTERN};
+use crate::ingest::timeparse::segment_by_timestamps;
 use crate::model::{NormalizedRecord, SourceKind};
 use once_cell::sync::Lazy;
 use regex::Regex;
-
-static TS_LINE: Lazy<Regex> = Lazy::new(|| Regex::new(TS_PATTERN).unwrap());
 
 pub fn parse(bytes: &[u8], platform: &str) -> crate::Result<Vec<NormalizedRecord>> {
     let raw = String::from_utf8_lossy(bytes);
@@ -21,44 +19,27 @@ pub fn parse(bytes: &[u8], platform: &str) -> crate::Result<Vec<NormalizedRecord
         return Ok(vec![]);
     }
 
-    // Split into blocks at each timestamp we can recognise, keeping the
-    // timestamp with the block that follows it. If none are found, the whole
-    // document becomes a single searchable record.
-    let mut records = Vec::new();
-    let mut marks: Vec<(usize, usize, i64)> = Vec::new();
-    for m in TS_LINE.find_iter(&text) {
-        if let Some(ts) = parse_timestamp(m.as_str()) {
-            marks.push((m.start(), m.end(), ts));
-        }
-    }
-
-    if marks.is_empty() {
-        let mut rec = NormalizedRecord::new("document", platform)
+    // Split into dated blocks (timestamp may lead or trail its message,
+    // depending on the exporting platform — see segment_by_timestamps). If
+    // there isn't enough structure to segment, the whole document becomes one
+    // searchable record.
+    let Some(blocks) = segment_by_timestamps(&text) else {
+        return Ok(vec![NormalizedRecord::new("document", platform)
             .with_title(Some(first_line(&text)))
-            .with_body(Some(truncate(&text, 20_000)));
-        rec = rec.with_raw(serde_json::json!({ "source": "html" }));
-        records.push(rec);
-        return Ok(records);
-    }
+            .with_body(Some(truncate(&text, 20_000)))
+            .with_raw(serde_json::json!({ "source": "html" }))]);
+    };
 
-    for (i, &(start, end, ts)) in marks.iter().enumerate() {
-        let block_end = marks.get(i + 1).map(|n| n.0).unwrap_or(text.len());
-        let block = text[end..block_end].trim();
-        if block.is_empty() {
-            continue;
-        }
-        records.push(
+    Ok(blocks
+        .into_iter()
+        .map(|(ts, block)| {
             NormalizedRecord::new("message", platform)
                 .with_time(Some(ts))
-                .with_title(Some(first_line(block)))
-                .with_body(Some(truncate(block, 8_000)))
-                .with_raw(serde_json::json!({
-                    "source": "html",
-                    "printed_time": text[start..end].trim(),
-                })),
-        );
-    }
-    Ok(records)
+                .with_title(Some(first_line(&block)))
+                .with_body(Some(truncate(&block, 8_000)))
+                .with_raw(serde_json::json!({ "source": "html" }))
+        })
+        .collect())
 }
 
 /// Strip HTML down to readable text: drop script/style bodies, replace tags

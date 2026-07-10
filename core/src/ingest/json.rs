@@ -1,9 +1,13 @@
 //! Generic + platform-aware JSON parser.
 //!
-//! Handles three shapes:
+//! Handles four shapes:
 //!   1. Facebook/Instagram message exports: `{ participants, messages: [...] }`.
 //!   2. A top-level array of objects -> one record per element.
-//!   3. Any other object -> a single record.
+//!   3. A "conversation map" — an object (optionally nested under wrapper keys
+//!      like Snapchat's `"Chat History"`) whose values are arrays of
+//!      message-like objects, keyed by contact/conversation name. Common
+//!      across Snapchat, Discord and other per-thread exports.
+//!   4. Any other object -> a single record.
 //!
 //! Field names are matched loosely (case-insensitive, common synonyms) so we
 //! extract a timestamp/sender/text without a per-platform schema for each.
@@ -33,8 +37,69 @@ pub fn parse(bytes: &[u8], platform: &str) -> crate::Result<Vec<NormalizedRecord
             .collect());
     }
 
-    // Shape 3: single object.
+    // Shape 3: a conversation map nested somewhere under the root (possibly
+    // behind wrapper keys). Search bounded-depth for the first arrays whose
+    // elements look like messages, tagging each with the conversation name
+    // (the key immediately above the array) as a Person identifier.
+    let mut convo_records = Vec::new();
+    find_conversation_arrays(&root, None, 0, &mut convo_records);
+    if !convo_records.is_empty() {
+        return Ok(convo_records
+            .into_iter()
+            .map(|(convo, v)| {
+                let mut rec = generic_record(&v, platform);
+                if let Some(name) = &convo {
+                    rec.add_identifier(EntityKind::Person, name.clone());
+                }
+                rec
+            })
+            .collect());
+    }
+
+    // Shape 4: single object.
     Ok(vec![generic_record(&root, platform)])
+}
+
+/// Recursively search `value` (up to `max_depth`) for arrays whose elements
+/// look like messages (an object with a text-like field). Once such an array
+/// is found at some depth, its elements are collected and we do not recurse
+/// further into them (so a message's own nested fields aren't re-scanned as
+/// another conversation). `key_above` is the object key immediately
+/// containing the array, used as the conversation/contact name.
+fn find_conversation_arrays(
+    value: &Value,
+    key_above: Option<&str>,
+    depth: usize,
+    out: &mut Vec<(Option<String>, Value)>,
+) {
+    const MAX_DEPTH: usize = 4;
+    if depth > MAX_DEPTH {
+        return;
+    }
+    match value {
+        Value::Array(items) => {
+            let looks_like_messages = !items.is_empty()
+                && items.iter().all(|it| it.is_object())
+                && items.iter().any(|it| {
+                    str_field(it, &["content", "text", "message", "body"]).is_some()
+                });
+            if looks_like_messages {
+                for item in items {
+                    out.push((key_above.map(str::to_string), item.clone()));
+                }
+            } else {
+                for item in items {
+                    find_conversation_arrays(item, key_above, depth + 1, out);
+                }
+            }
+        }
+        Value::Object(map) => {
+            for (k, v) in map {
+                find_conversation_arrays(v, Some(k), depth + 1, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn participants(root: &Value) -> Option<String> {
@@ -57,8 +122,8 @@ fn participants(root: &Value) -> Option<String> {
 fn message_record(m: &Value, platform: &str, convo: Option<&str>) -> NormalizedRecord {
     let sender = str_field(m, &["sender_name", "sender", "from", "author"]);
     let text = str_field(m, &["content", "text", "message", "body"]);
-    let ts = num_field(m, &["timestamp_ms", "timestamp", "date", "time", "created_at"])
-        .or_else(|| str_field(m, &["timestamp", "date", "time", "created_at"]).and_then(|s| parse_timestamp(&s)));
+    let ts = num_field(m, &["timestamp_ms", "timestamp", "date", "time", "created_at", "created"])
+        .or_else(|| str_field(m, &["timestamp", "date", "time", "created_at", "created"]).and_then(|s| parse_timestamp(&s)));
 
     // Keep the conversation label as context in `raw` (useful in the details
     // pane) but do NOT turn the participant list into a Person entity — a
@@ -87,8 +152,8 @@ fn generic_record(v: &Value, platform: &str) -> NormalizedRecord {
     let title = str_field(v, &["name", "title", "sender", "from", "subject", "author"]);
     let body = str_field(v, &["content", "text", "message", "body", "description", "snippet"])
         .or_else(|| Some(compact(v)));
-    let ts = num_field(v, &["timestamp_ms", "timestamp", "time", "date", "created_at", "epoch"])
-        .or_else(|| str_field(v, &["timestamp", "time", "date", "created_at"]).and_then(|s| parse_timestamp(&s)));
+    let ts = num_field(v, &["timestamp_ms", "timestamp", "time", "date", "created_at", "created", "epoch"])
+        .or_else(|| str_field(v, &["timestamp", "time", "date", "created_at", "created"]).and_then(|s| parse_timestamp(&s)));
 
     let mut rec = NormalizedRecord::new("row", platform)
         .with_time(ts)
@@ -205,6 +270,30 @@ mod tests {
         assert_eq!(recs.len(), 2);
         assert!(recs[0].identifiers.iter().any(|i| i.kind == EntityKind::Email));
         assert!(recs[1].identifiers.iter().any(|i| i.kind == EntityKind::Phone));
+    }
+
+    #[test]
+    fn parses_conversation_map_nested_under_wrapper_key() {
+        // Snapchat-style export: an outer wrapper key ("Chat History"), then
+        // conversation name -> array of message objects. Previously this fell
+        // through to the single-object fallback and yielded almost nothing.
+        let j = br#"{
+            "Chat History": {
+                "johnsmith88": [
+                    {"From": "johnsmith88", "Created": "2024-03-09 16:15:07 UTC", "Content": "hit me up at 555-123-4567"},
+                    {"From": "Me", "Created": "2024-03-09 16:20:00 UTC", "Content": "saved your email john.smith@example.com"}
+                ],
+                "janedoe": [
+                    {"From": "janedoe", "Created": "2024-03-10 05:53:00 UTC", "Content": "call me at 555-111-2222"}
+                ]
+            }
+        }"#;
+        let recs = parse(j, "snapchat").unwrap();
+        assert_eq!(recs.len(), 3, "expected one record per message, got {}", recs.len());
+        assert!(recs.iter().any(|r| r.identifiers.iter().any(|i| i.kind == EntityKind::Person && i.value == "johnsmith88")));
+        assert!(recs.iter().any(|r| r.identifiers.iter().any(|i| i.kind == EntityKind::Person && i.value == "janedoe")));
+        // Content field is recognized as body text so phone/email get extracted downstream.
+        assert!(recs.iter().any(|r| r.body.as_deref().unwrap_or("").contains("555-123-4567")));
     }
 
     #[test]

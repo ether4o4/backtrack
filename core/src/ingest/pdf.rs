@@ -10,12 +10,10 @@
 //! (i.e. needing OCR) yield nothing — that is surfaced as an empty result, not
 //! an error.
 
-use crate::ingest::timeparse::{parse_timestamp, TS_PATTERN};
+use crate::ingest::timeparse::segment_by_timestamps;
 use crate::model::{NormalizedRecord, SourceKind};
 use once_cell::sync::Lazy;
 use regex::Regex;
-
-static TS_LINE: Lazy<Regex> = Lazy::new(|| Regex::new(TS_PATTERN).unwrap());
 
 pub fn parse(bytes: &[u8], platform: &str) -> crate::Result<Vec<NormalizedRecord>> {
     // pdf-extract can panic on malformed PDFs; contain it so one bad file
@@ -31,35 +29,26 @@ pub fn parse(bytes: &[u8], platform: &str) -> crate::Result<Vec<NormalizedRecord
         return Ok(vec![]);
     }
 
-    let marks: Vec<(usize, i64)> = TS_LINE
-        .find_iter(&text)
-        .filter_map(|m| parse_timestamp(m.as_str()).map(|ts| (m.end(), ts)))
-        .collect();
-
-    if marks.len() < 2 {
-        // Not clearly a dated log — keep the whole document as one record.
+    // Split into dated entries (timestamp may lead or trail its text,
+    // depending on the source document — see segment_by_timestamps). If there
+    // isn't enough structure, keep the whole document as one record.
+    let Some(blocks) = segment_by_timestamps(&text) else {
         return Ok(vec![NormalizedRecord::new("document", platform)
             .with_title(Some(first_line(&text)))
             .with_body(Some(truncate(&text, 40_000)))
             .with_raw(serde_json::json!({ "source": "pdf" }))]);
-    }
+    };
 
-    let mut records = Vec::new();
-    for (i, &(pos, ts)) in marks.iter().enumerate() {
-        let end = marks.get(i + 1).map(|n| n.0).unwrap_or(text.len());
-        let block = text[pos..end].trim();
-        if block.is_empty() {
-            continue;
-        }
-        records.push(
+    Ok(blocks
+        .into_iter()
+        .map(|(ts, block)| {
             NormalizedRecord::new("entry", platform)
                 .with_time(Some(ts))
-                .with_title(Some(first_line(block)))
-                .with_body(Some(truncate(block, 8_000)))
-                .with_raw(serde_json::json!({ "source": "pdf" })),
-        );
-    }
-    Ok(records)
+                .with_title(Some(first_line(&block)))
+                .with_body(Some(truncate(&block, 8_000)))
+                .with_raw(serde_json::json!({ "source": "pdf" }))
+        })
+        .collect())
 }
 
 fn normalize_ws(s: &str) -> String {
