@@ -114,8 +114,18 @@ cd frontend && npm install && npm run dev
 
 ## Supported formats (MVP)
 
-CSV / TSV · JSON (generic + Facebook/Instagram message exports) · vCard (`.vcf`)
-contacts · SMS Backup & Restore XML · ZIP archives of any of the above.
+CSV / TSV · JSON (generic, Facebook/Instagram `{participants, messages}` exports,
+and conversation-map exports like Snapchat's contact-keyed message lists) ·
+HTML (Facebook/Instagram/Snapchat "download your data" archives — text layer
+only, split into dated entries where timestamps are present) · PDF (text-layer
+extraction; scanned/image-only PDFs yield nothing) · vCard (`.vcf`) contacts ·
+SMS Backup & Restore XML · ZIP archives of any of the above.
+
+Known limitation: some Facebook HTML exports contain mojibake from a
+long-standing double-UTF-8-encoding bug on Facebook's side (e.g. "don't"
+appears as "donâ€™t"). No automatic repair is attempted, since a naive fix
+risks corrupting genuinely non-English text — affected text passes through
+as-is rather than being silently "fixed" incorrectly.
 
 The parser layer is a plugin surface — new formats implement one function and
 register in the ingest dispatcher (see the architecture doc).
