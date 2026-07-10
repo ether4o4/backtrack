@@ -1,0 +1,29 @@
+# Rust
+/target
+/core/target
+/src-tauri/target
+**/*.rs.bk
+Cargo.lock.orig
+
+# Node / frontend
+node_modules
+/frontend/dist
+/frontend/node_modules
+npm-debug.log*
+.vite
+
+# Tauri generated
+/src-tauri/gen
+
+# Local data / stores
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.swp
